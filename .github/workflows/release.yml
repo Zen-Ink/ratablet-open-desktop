@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - v*
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux-x86_64
+          - os: windows-latest
+            name: windows-x86_64
+          - os: macos-latest
+            name: macos
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - run: cargo build --locked --release
+      - name: Archive binary
+        shell: bash
+        env:
+          ASSET_NAME: ratablet-${{ matrix.name }}
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            7z a "$ASSET_NAME.zip" target/release/ratablet.exe
+          else
+            tar -czf "$ASSET_NAME.tar.gz" -C target/release ratablet
+          fi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ratablet-${{ matrix.name }}
+          path: ratablet-${{ matrix.name }}.*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" dist/* --generate-notes
