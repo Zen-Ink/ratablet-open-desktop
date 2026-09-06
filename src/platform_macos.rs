@@ -1,6 +1,7 @@
 use crate::PenState;
 use std::ffi::c_void;
 use std::io;
+use std::process::Command;
 use std::ptr;
 
 type CGEventRef = *mut c_void;
@@ -81,6 +82,20 @@ unsafe extern "C" {
     fn CGEventPost(tap: i32, event: CGEventRef);
 }
 
+pub fn has_post_event_access() -> bool {
+    unsafe { CGPreflightPostEventAccess() }
+}
+
+pub fn open_accessibility_settings() -> io::Result<()> {
+    unsafe {
+        CGRequestPostEventAccess();
+    }
+    Command::new("open")
+        .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+        .spawn()
+        .map(|_| ())
+}
+
 #[link(name = "CoreFoundation", kind = "framework")]
 unsafe extern "C" {
     fn CFRelease(value: *const c_void);
@@ -105,10 +120,10 @@ pub struct Output {
 
 impl Output {
     pub fn new(max_x: i32, max_y: i32, max_pressure: i32) -> io::Result<Self> {
-        if unsafe { !CGPreflightPostEventAccess() && !CGRequestPostEventAccess() } {
+        if !has_post_event_access() {
             return Err(io::Error::new(
                 io::ErrorKind::PermissionDenied,
-                "grant ratablet Accessibility access in System Settings > Privacy & Security",
+                "grant ratablet access in System Settings > Privacy & Security > Accessibility",
             ));
         }
         // ponytail: map the main display only; add display selection when it is requested.

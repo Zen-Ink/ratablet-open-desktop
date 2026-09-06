@@ -210,6 +210,12 @@ struct Text {
     authentication_required: &'static str,
     authentication_message: &'static str,
     save_and_retry: &'static str,
+    #[cfg(target_os = "macos")]
+    accessibility_required: &'static str,
+    #[cfg(target_os = "macos")]
+    accessibility_message: &'static str,
+    #[cfg(target_os = "macos")]
+    open_accessibility: &'static str,
     later: &'static str,
     popup_behavior: &'static str,
     quit: &'static str,
@@ -256,6 +262,12 @@ impl Text {
                 authentication_message:
                     "Key authentication failed. Enter the device password, save it, and retry.",
                 save_and_retry: "Save and retry",
+                #[cfg(target_os = "macos")]
+                accessibility_required: "Accessibility permission required",
+                #[cfg(target_os = "macos")]
+                accessibility_message: "Open System Settings → Privacy & Security → Accessibility, then turn on the switch next to ratablet.",
+                #[cfg(target_os = "macos")]
+                open_accessibility: "Open Accessibility Settings",
                 later: "Later",
                 popup_behavior: "The window hides when it loses focus.",
                 quit: "Quit ratablet",
@@ -297,6 +309,13 @@ impl Text {
                 authentication_required: "需要认证",
                 authentication_message: "密钥认证失败。请输入设备密码，保存后再重新连接。",
                 save_and_retry: "保存并重试",
+                #[cfg(target_os = "macos")]
+                accessibility_required: "需要辅助功能权限",
+                #[cfg(target_os = "macos")]
+                accessibility_message:
+                    "请打开“系统设置 → 隐私与安全性 → 辅助功能”，开启 ratablet 旁边的开关。",
+                #[cfg(target_os = "macos")]
+                open_accessibility: "打开辅助功能设置",
                 later: "稍后",
                 popup_behavior: "窗口失去焦点后会自动隐藏。",
                 quit: "退出 ratablet",
@@ -317,6 +336,8 @@ struct App {
     credential_message: Option<(bool, String)>,
     dismissed_auth_error: Option<String>,
     announced_auth_error: Option<String>,
+    #[cfg(target_os = "macos")]
+    dismissed_accessibility: bool,
     quitting: Arc<AtomicBool>,
     #[cfg(target_os = "linux")]
     tray: Option<ksni::blocking::Handle<LinuxTray>>,
@@ -389,6 +410,8 @@ impl App {
             credential_message: None,
             dismissed_auth_error: None,
             announced_auth_error: None,
+            #[cfg(target_os = "macos")]
+            dismissed_accessibility: false,
             quitting,
             #[cfg(target_os = "linux")]
             tray,
@@ -649,6 +672,36 @@ impl App {
             _ => None,
         }
     }
+
+    #[cfg(target_os = "macos")]
+    fn accessibility_modal(&mut self, ctx: &egui::Context, text: &Text) {
+        if super::platform::has_post_event_access() {
+            self.dismissed_accessibility = false;
+            return;
+        }
+        if self.dismissed_accessibility {
+            return;
+        }
+
+        let mut dismiss = false;
+        let response = egui::Modal::new(egui::Id::new("macos_accessibility")).show(ctx, |ui| {
+            ui.set_max_width(350.0);
+            ui.heading(text.accessibility_required);
+            ui.label(text.accessibility_message);
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                if ui.button(text.open_accessibility).clicked() {
+                    let _ = super::platform::open_accessibility_settings();
+                }
+                if ui.button(text.later).clicked() {
+                    dismiss = true;
+                }
+            });
+        });
+        if dismiss || response.should_close() {
+            self.dismissed_accessibility = true;
+        }
+    }
 }
 
 impl eframe::App for App {
@@ -710,6 +763,8 @@ impl eframe::App for App {
                 Page::Settings => self.settings_page(ui, &text),
             });
         self.auth_modal(&ctx, &text);
+        #[cfg(target_os = "macos")]
+        self.accessibility_modal(&ctx, &text);
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
