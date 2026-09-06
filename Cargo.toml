@@ -2,9 +2,8 @@
 name = "ratablet"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.95"
 description = "Use a reMarkable tablet as a pen tablet on Linux, Windows, and macOS"
-license = "MIT"
+license = "GPL-3.0-or-later"
 
 [dependencies]
 eframe = { version = "0.36.1", default-features = false, features = ["accesskit", "default_fonts", "glow", "persistence", "wayland", "x11"] }

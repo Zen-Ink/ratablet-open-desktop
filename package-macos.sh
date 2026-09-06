@@ -2,15 +2,11 @@
 set -euo pipefail
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-osxcross=${OSXCROSS_ROOT:-/run/media/lurenmax/Data/Tools/Apple/osxcross}
-tools="$osxcross/target/bin"
-darwin=25.5
 app="$root/dist/ratablet.app"
 
-export PATH="$tools:$PATH"
 export MACOSX_DEPLOYMENT_TARGET=11.0
-export CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER="aarch64-apple-darwin${darwin}-clang"
-export CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER="x86_64-apple-darwin${darwin}-clang"
+export CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER="${CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER:-oa64-clang}"
+export CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER="${CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER:-o64-clang}"
 
 command -v "$CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER" >/dev/null
 command -v "$CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER" >/dev/null
