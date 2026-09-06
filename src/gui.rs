@@ -870,6 +870,8 @@ impl ksni::Tray for LinuxTray {
         ksni::Category::Hardware
     }
 
+    #[allow(unknown_lints)]
+    #[allow(clippy::chunks_exact_to_as_chunks)]
     fn icon_pixmap(&self) -> Vec<ksni::Icon> {
         let mut data = icon_rgba(32);
         for pixel in data.chunks_exact_mut(4) {
