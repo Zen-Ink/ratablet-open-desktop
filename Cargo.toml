@@ -1,0 +1,34 @@
+[package]
+name = "ratablet"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.95"
+description = "Use a reMarkable tablet as a pen tablet on Linux, Windows, and macOS"
+license = "MIT"
+
+[dependencies]
+eframe = { version = "0.36.1", default-features = false, features = ["accesskit", "default_fonts", "glow", "persistence", "wayland", "x11"] }
+egui-system-fonts = "0.36.0"
+keyring = "4.2"
+sys-locale = "0.3"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ksni = { version = "0.3", features = ["blocking"] }
+libc = "0.2"
+raw-window-handle = "0.6"
+wayland-client = { version = "0.31.15", features = ["system"] }
+wayland-protocols-plasma = { version = "0.3.12", features = ["client"] }
+
+[target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]
+tray-icon = "0.24"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+winit = "0.30.13"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_UI_Controls",
+    "Win32_UI_Input_Pointer",
+    "Win32_UI_WindowsAndMessaging",
+] }
