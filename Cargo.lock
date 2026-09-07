@@ -3166,6 +3166,7 @@ version = "0.1.0"
 dependencies = [
  "eframe",
  "egui-system-fonts",
+ "getrandom 0.3.4",
  "keyring",
  "ksni",
  "libc",

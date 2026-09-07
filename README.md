@@ -10,7 +10,7 @@ ratablet runs in the system tray by default. Select the tray icon to open the co
 
 The settings page accepts a device IP address or SSH target. An IP address or hostname is expanded to the `root` user. The initial target is `root@10.11.99.1`. Authentication starts with SSH keys. Saved passwords use Linux Secret Service, Windows Credential Manager, or macOS Keychain. An authentication failure pauses reconnection and opens the password dialog.
 
-The host reads evdev pen events through one SSH session. The device stays unchanged and the remote reader exits with the SSH session. A wakelock keeps the tablet awake while connected. Reconnection continues after a disconnect until the process receives Ctrl+C.
+SSH authenticates the device and starts the remote reader. Pen events return over a temporary TCP connection authenticated by a one-time session token, avoiding SSH's high-frequency buffering. The device stays unchanged and the remote reader exits with the SSH session. A wakelock keeps the tablet awake while connected. Reconnection continues after a disconnect until the process receives Ctrl+C. The event stream is not encrypted, so use USB or a trusted network.
 
 ## Supported devices
 

@@ -8,6 +8,7 @@ license = "GPL-3.0-or-later"
 [dependencies]
 eframe = { version = "0.36.1", default-features = false, features = ["accesskit", "default_fonts", "glow", "persistence", "wayland", "x11"] }
 egui-system-fonts = "0.36.0"
+getrandom = "0.3"
 keyring = "4.2"
 sys-locale = "0.3"
 

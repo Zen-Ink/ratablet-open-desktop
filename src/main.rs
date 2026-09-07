@@ -6,11 +6,13 @@
 use std::env;
 use std::error::Error;
 use std::io::{self, BufRead, BufReader, Read};
+use std::net::{Ipv4Addr, TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
+use std::time::{Duration, Instant};
 
 mod gui;
 
@@ -46,6 +48,10 @@ else
     done
 fi
 [ -n "$device" ] && [ -r "$device" ] || { printf 'pen input device not found\n' >&2; exit 1; }
+set -- ${SSH_CLIENT:-}
+[ "$#" -ge 1 ] || { printf 'SSH client address unavailable\n' >&2; exit 1; }
+client=$1
+command -v nc >/dev/null || { printf 'netcat unavailable\n' >&2; exit 1; }
 case "$(uname -m)" in
     aarch64|x86_64|riscv64) bits=64 ;;
     *) bits=32 ;;
@@ -91,7 +97,10 @@ if [ "$RAT_AUTO" = 1 ]; then
         printf 'ratablet: rotation sensor unavailable; keeping landscape\n' >&2
     fi
 fi
-cat "$device" &
+(
+    printf '%s' "$RAT_TOKEN"
+    cat "$device"
+) | nc "$client" "$RAT_PORT" &
 child=$!
 # The host keeps SSH stdin open as a session-lifetime pipe. EOF means the
 # host or connection is gone, so cleanup can stop the otherwise-blocking reader.
@@ -558,8 +567,14 @@ impl Drop for SshChild {
     }
 }
 
-fn spawn_ssh(args: &Args, auto_rotate: bool, password: Option<&str>) -> io::Result<SshChild> {
-    ssh_command(args, auto_rotate, password)?
+fn spawn_ssh(
+    args: &Args,
+    auto_rotate: bool,
+    password: Option<&str>,
+    data_port: u16,
+    data_token: &str,
+) -> io::Result<SshChild> {
+    ssh_command(args, auto_rotate, password, data_port, data_token)?
         .spawn()
         .map(SshChild)
         .map_err(|error| {
@@ -570,7 +585,13 @@ fn spawn_ssh(args: &Args, auto_rotate: bool, password: Option<&str>) -> io::Resu
         })
 }
 
-fn ssh_command(args: &Args, auto_rotate: bool, password: Option<&str>) -> io::Result<Command> {
+fn ssh_command(
+    args: &Args,
+    auto_rotate: bool,
+    password: Option<&str>,
+    data_port: u16,
+    data_token: &str,
+) -> io::Result<Command> {
     let mut command = Command::new("ssh");
     #[cfg(target_os = "windows")]
     {
@@ -621,7 +642,7 @@ fn ssh_command(args: &Args, auto_rotate: bool, password: Option<&str>) -> io::Re
         .arg("--")
         .arg(&args.host)
         .arg(format!(
-            "RAT_DEVICE='{device}' RAT_AUTO='{auto}' /bin/sh -c {}",
+            "RAT_DEVICE='{device}' RAT_AUTO='{auto}' RAT_PORT='{data_port}' RAT_TOKEN='{data_token}' /bin/sh -c {}",
             shell_quote(REMOTE_SCRIPT)
         ))
         .stdin(Stdio::piped())
@@ -632,6 +653,38 @@ fn ssh_command(args: &Args, auto_rotate: bool, password: Option<&str>) -> io::Re
 
 fn shell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
+}
+
+fn data_token() -> io::Result<String> {
+    let mut bytes = [0; 16];
+    getrandom::fill(&mut bytes).map_err(|error| io::Error::other(error.to_string()))?;
+    Ok(format!("{:032x}", u128::from_ne_bytes(bytes)))
+}
+
+fn accept_data_stream(listener: &TcpListener, token: &str) -> io::Result<TcpStream> {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        match listener.accept() {
+            Ok((mut stream, _)) => {
+                stream.set_read_timeout(Some(Duration::from_millis(500)))?;
+                let mut received = vec![0; token.len()];
+                if stream.read_exact(&mut received).is_ok() && received == token.as_bytes() {
+                    stream.set_read_timeout(None)?;
+                    return Ok(stream);
+                }
+            }
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                if Instant::now() >= deadline {
+                    return Err(io::Error::new(
+                        io::ErrorKind::TimedOut,
+                        "direct pen data connection timed out (check the host firewall)",
+                    ));
+                }
+                thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => return Err(error),
+        }
+    }
 }
 
 fn read_ssh_stderr(
@@ -681,7 +734,17 @@ fn run(args: &Args, shared: &Arc<SharedState>) -> Result<(), Box<dyn Error>> {
     let password = shared.password.lock().unwrap().clone();
     let mut ssh_args = args.clone();
     ssh_args.host = host;
-    let mut ssh = spawn_ssh(&ssh_args, mode == RotationMode::Auto, password.as_deref())?;
+    let listener = TcpListener::bind((Ipv4Addr::UNSPECIFIED, 0))?;
+    listener.set_nonblocking(true)?;
+    let data_port = listener.local_addr()?.port();
+    let data_token = data_token()?;
+    let mut ssh = spawn_ssh(
+        &ssh_args,
+        mode == RotationMode::Auto,
+        password.as_deref(),
+        data_port,
+        &data_token,
+    )?;
     let orientation = Arc::new(AtomicU16::new(u16::MAX));
     let ssh_errors = Arc::new(Mutex::new(Vec::new()));
     let stderr_thread = if let Some(stderr) = ssh.0.stderr.take() {
@@ -724,6 +787,7 @@ fn run(args: &Args, shared: &Arc<SharedState>) -> Result<(), Box<dyn Error>> {
         ))
         .into());
     }
+    let mut event_reader = BufReader::new(accept_data_stream(&listener, &data_token)?);
     let fixed_rotation = mode.rotation(&info, u16::MAX);
     let output_rotation = fixed_rotation;
     let (output_x, output_y) = info.output_ranges(output_rotation);
@@ -751,7 +815,7 @@ fn run(args: &Args, shared: &Arc<SharedState>) -> Result<(), Box<dyn Error>> {
     let (event_tx, event_rx) = mpsc::channel();
     let event_size = info.event_size;
     thread::spawn(move || loop {
-        match read_event(&mut reader, event_size) {
+        match read_event(&mut event_reader, event_size) {
             Ok(Some(event)) => {
                 if event_tx.send(Ok(event)).is_err() {
                     break;
@@ -982,7 +1046,7 @@ mod tests {
 
     #[test]
     fn ssh_skips_known_hosts_uses_keys_first_and_internal_askpass() {
-        let command = ssh_command(&args(), false, Some("secret")).unwrap();
+        let command = ssh_command(&args(), false, Some("secret"), 12345, "data-token").unwrap();
         let arguments: Vec<_> = command
             .get_args()
             .map(|value| value.to_string_lossy())
@@ -1009,6 +1073,23 @@ mod tests {
         assert!(environment.iter().any(|(key, value)| {
             *key == "RATABLET_PASSWORD" && value.is_some_and(|value| value == "secret")
         }));
+        assert!(arguments
+            .iter()
+            .any(|value| value.contains("RAT_PORT='12345' RAT_TOKEN='data-token'")));
+    }
+
+    #[test]
+    fn direct_data_stream_requires_the_session_token() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let address = listener.local_addr().unwrap();
+        thread::spawn(move || {
+            for token in [b"wrong-token".as_slice(), b"right-token"] {
+                let mut stream = TcpStream::connect(address).unwrap();
+                std::io::Write::write_all(&mut stream, token).unwrap();
+            }
+        });
+        assert!(accept_data_stream(&listener, "right-token").is_ok());
     }
 
     #[test]
