@@ -4,13 +4,17 @@
 
 [zh]: README.zh-CN.md
 
-Use a reMarkable tablet as a pen tablet on Linux, Windows, or macOS.
+Use a reMarkable device as a pen tablet on Linux, Windows, or macOS.
 
 ratablet runs in the system tray by default. Select the tray icon to open the control panel. The panel shows the device model, connection state, rotation, pen mapping, and settings. Its language follows the system locale and can also be selected manually.
 
-The settings page accepts a device IP address or SSH target. An IP address or hostname is expanded to the `root` user. The initial target is `root@10.11.99.1`. Authentication starts with SSH keys. Saved passwords use Linux Secret Service, Windows Credential Manager, or macOS Keychain. An authentication failure pauses reconnection and opens the password dialog.
+The settings page accepts a device IP address or SSH target. The initial target is `root@10.11.99.1`. Authentication starts with SSH keys. Saved passwords use Linux Secret Service, Windows Credential Manager, or macOS Keychain. An authentication failure pauses reconnection and opens the password dialog.
 
-SSH authenticates the device and starts the remote reader. Pen events return over a temporary TCP connection authenticated by a one-time session token, avoiding SSH's high-frequency buffering. The device stays unchanged and the remote reader exits with the SSH session. A wakelock keeps the tablet awake while connected. Reconnection continues after a disconnect until the process receives Ctrl+C. The event stream is not encrypted, so use USB or a trusted network.
+SSH only authenticates the device and starts the remote reader. Pen events return over a temporary TCP connection authenticated by a one-time session token. The tablet stays awake while connected. Reconnection continues after a disconnect until the process receives Ctrl+C. The event stream is not encrypted, so please use USB or a trusted network.
+
+## Performance
+
+In an RM2 USB test, transport intervals averaged 1.85 ms with no pauses of 10 ms or longer. End-to-end results still depend on the host and drawing application.
 
 ## Supported devices
 
@@ -19,7 +23,7 @@ SSH authenticates the device and starts the remote reader. Pen events return ove
 - reMarkable Paper Pro Move — Chiappa
 - reMarkable Paper Pro Pure — Tatsu
 
-Input devices are discovered by name. Explicit calibration values support additional models. RM1 and RM2 use native landscape coordinates. The Paper Pro family uses a 90-degree rotation. `--rotate` selects a fixed orientation and `--auto-rotate` follows the Paper Pro rotation sensor.
+Input devices are discovered by name. Explicit calibration values support additional models. RM1 and RM2 use landscape coordinates. The Paper Pro family uses a 90-degree rotation. `--rotate` selects a fixed orientation and `--auto-rotate` follows the Paper Pro rotation sensor.
 
 ## Run
 
@@ -29,33 +33,13 @@ Long Version:
 
 Enable SSH on the reMarkable and install an OpenSSH client on the host.
 
-```sh
-ratablet
-ratablet --key ~/.ssh/remarkable
-ratablet --host root@192.168.1.50 --rotate 270
-ratablet --auto-rotate
-ratablet --headless
-```
-
 SSH uses an isolated known-hosts configuration and automatically accepts the device host key. This favors easy reconnection after a device reset over protection from a machine-in-the-middle attack.
 
-Linux requires write access to `/dev/uinput`, commonly granted through a distribution uinput group or udev rule. The tray uses StatusNotifierItem. Desktops without tray support open the control panel directly. KDE Plasma Wayland uses its native applet popup behavior.
+- Linux requires write access to `/dev/uinput`, commonly granted through a distribution uinput group or udev rule. The tray uses StatusNotifierItem. Desktops without tray support open the control panel directly. KDE Plasma Wayland uses its native applet popup behavior.
 
-Windows uses the Synthetic Pen API included with Windows 10 version 1809 and later. It supplies position, pressure, tilt, hover, and eraser data to Windows Ink applications.
+- Windows uses the Synthetic Pen API included with Windows 10 version 1809 and later. It supplies position, pressure, tilt, hover, and eraser data to Windows Ink applications.
 
-macOS uses CoreGraphics event injection. Grant ratablet access under System Settings → Privacy & Security → Accessibility. Pen input maps to the primary display.
-
-Override input discovery when needed:
-
-```sh
-ratablet --device /dev/input/event2
-```
-
-Provide calibration values for an additional model:
-
-```sh
-ratablet --max-x 11180 --max-y 15340 --max-pressure 4096
-```
+- macOS uses CoreGraphics event injection. Grant ratablet access under System Settings → Privacy & Security → Accessibility. Pen input maps to the primary display.
 
 Run `ratablet --help` for every option.
 
