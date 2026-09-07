@@ -21,35 +21,11 @@ ratablet 默认以系统托盘应用运行。点击托盘图标可打开控制�
 
 输入节点按名称自动发现。显式校准值可支持更多型号。RM1 和 RM2 使用原生横屏坐标。Paper Pro 系列采用 90 度旋转。`--rotate` 可选择固定方向，`--auto-rotate` 可跟随 Paper Pro 旋转传感器。
 
-## 构建
-
-```sh
-cargo build --release
-```
-
-Windows 交叉构建需要 Rust GNU target 和 MinGW-w64：
-
-```sh
-rustup target add x86_64-pc-windows-gnu
-cargo build --release --target x86_64-pc-windows-gnu
-```
-
-macOS 交叉构建需要 osxcross，并将其 `target/bin` 目录加入 `PATH`：
-
-```sh
-rustup target add aarch64-apple-darwin x86_64-apple-darwin
-./package-macos.sh
-```
-
-脚本使用 osxcross 的稳定别名 `oa64-clang`、`o64-clang` 和 `lipo`。前两个工具可通过 linker 环境变量覆盖。输出为 `dist/ratablet.app`，其中包含 ARM64 和 x86_64 通用应用包。
-
-本地构建传输到 macOS 后可能触发 Gatekeeper。临时签名可用于本机测试：
-
-```sh
-codesign --force --deep --sign - ratablet.app
-```
-
 ## 运行
+
+简短版本：下载 → 连接 reMarkable 平板 → 输入密码 → 完成
+
+详细版本：
 
 在 reMarkable 上开启 SSH，并在宿主机安装 OpenSSH 客户端。
 
@@ -82,6 +58,28 @@ ratablet --max-x 11180 --max-y 15340 --max-pressure 4096
 ```
 
 运行 `ratablet --help` 可查看全部参数。
+
+## 构建
+
+```sh
+cargo build --release
+```
+
+Windows 交叉构建需要 Rust GNU target 和 MinGW-w64：
+
+```sh
+rustup target add x86_64-pc-windows-gnu
+cargo build --release --target x86_64-pc-windows-gnu
+```
+
+macOS 交叉构建需要 osxcross，并将其 `target/bin` 目录加入 `PATH`：
+
+```sh
+rustup target add aarch64-apple-darwin x86_64-apple-darwin
+./package-macos.sh
+```
+
+脚本使用 osxcross 的稳定别名 `oa64-clang`、`o64-clang` 和 `lipo`。前两个工具可通过 linker 环境变量覆盖。输出为 `dist/ratablet.app`，其中包含 ARM64 和 x86_64 通用应用包。
 
 ## 许可证
 

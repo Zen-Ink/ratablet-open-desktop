@@ -21,35 +21,11 @@ The host reads evdev pen events through one SSH session. The device stays unchan
 
 Input devices are discovered by name. Explicit calibration values support additional models. RM1 and RM2 use native landscape coordinates. The Paper Pro family uses a 90-degree rotation. `--rotate` selects a fixed orientation and `--auto-rotate` follows the Paper Pro rotation sensor.
 
-## Build
-
-```sh
-cargo build --release
-```
-
-Cross-compile for Windows with the Rust GNU target and MinGW-w64:
-
-```sh
-rustup target add x86_64-pc-windows-gnu
-cargo build --release --target x86_64-pc-windows-gnu
-```
-
-Cross-compile for macOS with osxcross and its `target/bin` directory on `PATH`:
-
-```sh
-rustup target add aarch64-apple-darwin x86_64-apple-darwin
-./package-macos.sh
-```
-
-The script uses the standard osxcross aliases `oa64-clang`, `o64-clang`, and `lipo`. Linker environment variables can override the first two. The output is `dist/ratablet.app`, a universal ARM64 and x86_64 application bundle.
-
-Unsigned local builds may trigger Gatekeeper after transfer to macOS. Ad-hoc signing prepares a local test build:
-
-```sh
-codesign --force --deep --sign - ratablet.app
-```
-
 ## Run
+
+Short Version: Download → Connect Remarkable Tablet → Input Password → Done
+
+Long Version:
 
 Enable SSH on the reMarkable and install an OpenSSH client on the host.
 
@@ -82,6 +58,28 @@ ratablet --max-x 11180 --max-y 15340 --max-pressure 4096
 ```
 
 Run `ratablet --help` for every option.
+
+## Build
+
+```sh
+cargo build --release
+```
+
+Cross-compile for Windows with the Rust GNU target and MinGW-w64:
+
+```sh
+rustup target add x86_64-pc-windows-gnu
+cargo build --release --target x86_64-pc-windows-gnu
+```
+
+Cross-compile for macOS with osxcross and its `target/bin` directory on `PATH`:
+
+```sh
+rustup target add aarch64-apple-darwin x86_64-apple-darwin
+./package-macos.sh
+```
+
+The script uses the standard osxcross aliases `oa64-clang`, `o64-clang`, and `lipo`. Linker environment variables can override the first two. The output is `dist/ratablet.app`, a universal ARM64 and x86_64 application bundle.
 
 ## License
 
